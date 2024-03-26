@@ -2,16 +2,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #pragma comment(lib, "ws2_32.lib")
-
 #include <windows.h>
 #include <winsock2.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
-#define PORT 80
-const char szHost[] = "http://127.0.0.1:8080";
-const char szMsg[] = "HEAD / HTTP/1.0\r\n\r\n";
+#define PORT 8080
+const char request[] = "GET / HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nConnection: close\r\n\r\n";
 
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 
@@ -54,9 +52,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp) {
 	  break;
 	case WM_COMMAND:
 	  if ((HWND)lp == hSearchBtn) {
-	    HANDLE rt = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)makeRequest, (LPVOID)hWnd, 0, NULL);
-	    WaitForSingleObject(rt, INFINITE);
-		CloseHandle(rt);
+	    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)makeRequest, (LPVOID)hWnd, 0, NULL);
 	  }
 	  break;
     case WM_DESTROY:
@@ -82,36 +78,38 @@ void makeRequest(HWND hWnd) {
   wchar_t buffer[256];
   GetWindowTextW(hSearchBar, buffer, 256);
   std::wstring url(buffer);
-  if (WSAStartup(MAKEWORD(2, 1), &wsaData) != 0) {
+  WORD DllVersion MAKEWORD(2, 1);
+  if (WSAStartup(DllVersion, &wsaData) != 0) {
     ExitProcess(EXIT_FAILURE);
+	return;
   }
   SOCKET client = socket(AF_INET, SOCK_STREAM, 0);
-  if (client < 0) {
+  if (client == INVALID_SOCKET) {
     ExitProcess(EXIT_FAILURE);
+	return;
   }
-  HOSTENT* host = gethostbyname(szHost);
-  if (host == nullptr) {
-    ExitProcess(EXIT_FAILURE);
+  struct sockaddr_in serverInfo;
+  serverInfo.sin_family = AF_INET;
+  serverInfo.sin_port = htons(PORT);
+  serverInfo.sin_addr.s_addr = inet_addr("127.0.0.1");
+  if (connect(client, (struct sockaddr*)&serverInfo, sizeof(serverInfo)) == SOCKET_ERROR) {
+	ExitProcess(EXIT_FAILURE);
+	return;
   }
-  SOCKADDR_IN sin;
-  ZeroMemory(&sin, sizeof(sin));
-  sin.sin_port = htons(PORT);
-  sin.sin_family = AF_INET;
-  memcpy(&sin.sin_addr.S_un.S_addr, host->h_addr_list[0], sizeof(sin.sin_addr.S_un.S_addr));
-  if (connect(client, (const sockaddr *)&sin, sizeof(sin)) != 0) {
-    ExitProcess(EXIT_FAILURE);
+  if (send(client, request, strlen(request), 0) == SOCKET_ERROR) {
+	ExitProcess(EXIT_FAILURE);
+	return;
   }
-  if (!send(client, szMsg, strlen(szMsg), 0)) {
-    ExitProcess(EXIT_FAILURE);
+  char szBuffer[4096];
+  std::string response;
+  int bytesRecv;
+  while ((bytesRecv = recv(client, szBuffer, sizeof(szBuffer), 0)) > 0) {
+	response.append(szBuffer, bytesRecv);
   }
-  char szBuffer[4096] = {0};
-  char szTemp[4096] = {0};
-  while(recv(client, szTemp, 4096, 0)) {
-	strcat(szBuffer, szTemp);  
-  }
-  printf("%s", szBuffer);
+  printf("%s", response.c_str());
   fflush(stdout);
   closesocket(client);
-  getchar();
+  WSACleanup();
   ExitProcess(EXIT_SUCCESS);
+  return;
 }
