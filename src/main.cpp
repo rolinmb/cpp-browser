@@ -93,13 +93,14 @@ void makeRequest(HWND hWnd) {
   serverInfo.sin_port = htons(PORT);
   serverInfo.sin_addr.s_addr = inet_addr("127.0.0.1");
   if (connect(client, (struct sockaddr*)&serverInfo, sizeof(serverInfo)) == SOCKET_ERROR) {
+	printf("main.cpp :: Client socket failed to connect to server\n");
 	ExitProcess(EXIT_FAILURE);
-	return;
   }
   if (send(client, request, strlen(request), 0) == SOCKET_ERROR) {
+	printf("main.cpp :: Client socket failed to send GET request to server\n");
 	ExitProcess(EXIT_FAILURE);
-	return;
   }
+  printf("main.cpp :: Client socket successfully succesfully sent GET request to server\n");
   char szBuffer[4096];
   std::string response;
   int bytesRecv;
@@ -110,6 +111,5 @@ void makeRequest(HWND hWnd) {
   fflush(stdout);
   closesocket(client);
   WSACleanup();
-  ExitProcess(EXIT_SUCCESS);
   return;
 }
